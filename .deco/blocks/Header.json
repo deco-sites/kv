@@ -1,0 +1,20 @@
+{
+  "__resolveType": "site/sections/Header.tsx",
+  "navigation": {
+    "links": [
+      {
+        "label": "Performance",
+        "url": "/performance"
+      },
+      {
+        "label": "Culture",
+        "url": "/culture"
+      },
+      {
+        "label": "Customization",
+        "url": "/customization"
+      }
+    ],
+    "buttons": []
+  }
+}

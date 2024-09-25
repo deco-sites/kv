@@ -1,0 +1,7 @@
+{
+  "__resolveType": "site/sections/Hero.tsx",
+  "title": "<p>Click here to tweak this text however you want...</p>",
+  "placement": "left",
+  "cta": [],
+  "newProp": "world"
+}
