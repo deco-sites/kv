@@ -79,3 +79,4 @@ _docker_deps.ts
 .metadata/*
 .deco/metadata/*
 kv*
+statefulset.yaml
