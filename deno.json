@@ -26,9 +26,9 @@
       "exclude": ["static/", "README.md"]
     }
   },
-  "nodeModulesDir": false,
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
-  }
+  },
+  "nodeModulesDir": false
 }
