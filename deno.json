@@ -1,9 +1,11 @@
 {
   "imports": {
-    "@deco/actors": "jsr:@deco/actors@^0.3.2"
+    "@atrox/haikunator": "jsr:@atrox/haikunator@^2.1.2",
+    "@deco/actors": "jsr:@deco/actors@^0.3.2",
+    "fast-json-patch": "npm:fast-json-patch@^3.1.1"
   },
   "tasks": {
-    "start": "deno run -A --unstable-kv main.ts"
+    "start": "deno run -A --unstable-hmr --unstable-kv main.ts"
   },
   "githooks": {
     "pre-commit": "check"
