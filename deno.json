@@ -1,7 +1,7 @@
 {
   "imports": {
     "@atrox/haikunator": "jsr:@atrox/haikunator@^2.1.2",
-    "@deco/actors": "jsr:@deco/actors@^0.3.2",
+    "@deco/actors": "jsr:@deco/actors@^0.3.3",
     "fast-json-patch": "npm:fast-json-patch@^3.1.1"
   },
   "tasks": {
