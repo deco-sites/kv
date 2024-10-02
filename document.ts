@@ -22,6 +22,7 @@ export class Document<T> implements IDocument<T> {
         this._state = null;
         state.blockConcurrencyWhile(async () => {
             this._state = await state.storage.get("state");
+            console.log("initializing", this._state);
             this._state ??= { doc: null, version: 0 } as DocumentState<T>;
         });
     }
@@ -48,7 +49,7 @@ export class Document<T> implements IDocument<T> {
             this.watchTarget.notify(this._state);
             return result;
         } catch (error) {
-            console.log({ error });
+            console.error({ error });
             if (
                 error instanceof fjp.JsonPatchError &&
                 error.name === "TEST_OPERATION_FAILED"
