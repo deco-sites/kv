@@ -1,9 +1,10 @@
 import { ActorRuntime } from "@deco/actors";
+import { Document } from "./document.ts";
 import { Presence } from "./presence.ts";
 const portEnv = Deno.env.get("PORT");
 const port = portEnv ? +portEnv : 8000;
 
-const rt = new ActorRuntime([Presence]);
+const rt = new ActorRuntime([Presence, Document]);
 
 Deno.serve({
   handler: async (req) => {

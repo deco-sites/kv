@@ -1,12 +1,19 @@
+import Haikunator from "@atrox/haikunator";
 import { ActorState } from "@deco/actors";
 import { WatchTarget } from "@deco/actors/watch";
+// ES6: import Haikunator from 'haikunator'
 
+// Instantiate Haikunator without options
+const haikunator = new Haikunator();
+
+interface Cursor {
+    x: number;
+    y: number;
+}
 interface User {
     id: string;
     name: string;
-    country: string;
-    x: number;
-    y: number;
+    cursor: Cursor;
 }
 
 type UserId = string;
@@ -30,21 +37,20 @@ export class Presence implements IPresence {
         state.blockConcurrencyWhile(async () => {});
     }
 
-    update(userId: string, ctx: { x: number; y: number }): void {
-        this._state.users[userId].x = ctx.x;
-        this._state.users[userId].y = ctx.y;
-
+    update(userId: string, cursor: Cursor): void {
+        this._state.users[userId].cursor = cursor;
         this.watchTarget.notify(this._state);
     }
 
     join(userId: string): AsyncIterableIterator<State> {
+        const name = haikunator.haikunate({ tokenLength: 0, delimiter: " " }); // => "delicate haze"
+
         this._state.users[userId] ??= {
             id: userId,
-            name: "Anonymous",
-            country: "Unknown",
-            x: 0,
-            y: 0,
+            name,
+            cursor: { x: 0, y: 0 },
         };
+
         const leave = () => {
             delete this._state.users[userId];
             this.watchTarget.notify(this._state);
