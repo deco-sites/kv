@@ -48,6 +48,7 @@ export class Document<T> implements IDocument<T> {
             this.watchTarget.notify(this._state);
             return result;
         } catch (error) {
+            console.log({ error });
             if (
                 error instanceof fjp.JsonPatchError &&
                 error.name === "TEST_OPERATION_FAILED"
