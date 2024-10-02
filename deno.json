@@ -1,6 +1,6 @@
 {
   "imports": {
-    "@deco/actors": "jsr:@deco/actors@^0.2.6"
+    "@deco/actors": "jsr:@deco/actors@^0.3.2"
   },
   "tasks": {
     "start": "deno run -A --unstable-kv main.ts"
@@ -18,12 +18,18 @@
   ],
   "lint": {
     "rules": {
-      "tags": ["fresh", "recommended"]
+      "tags": [
+        "fresh",
+        "recommended"
+      ]
     }
   },
   "fmt": {
     "files": {
-      "exclude": ["static/", "README.md"]
+      "exclude": [
+        "static/",
+        "README.md"
+      ]
     }
   },
   "compilerOptions": {
