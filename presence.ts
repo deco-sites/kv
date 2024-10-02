@@ -38,8 +38,6 @@ export class Presence implements IPresence {
     }
 
     join(userId: string): AsyncIterableIterator<State> {
-        let leave = () => {};
-
         this._state.users[userId] ??= {
             id: userId,
             name: "Anonymous",
@@ -47,11 +45,9 @@ export class Presence implements IPresence {
             x: 0,
             y: 0,
         };
-        const previous = leave;
-        leave = () => {
+        const leave = () => {
             delete this._state.users[userId];
             this.watchTarget.notify(this._state);
-            previous();
         };
 
         const subscribe = this.watchTarget.subscribe();
