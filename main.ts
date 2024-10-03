@@ -1,10 +1,9 @@
 import { ActorRuntime } from "@deco/actors";
-import { Document } from "./document.ts";
-import { Presence } from "./presence.ts";
+import { ExcalidrawCollab } from "./collab.ts";
 const portEnv = Deno.env.get("PORT");
 const port = portEnv ? +portEnv : 8000;
 
-const rt = new ActorRuntime([Presence, Document]);
+const rt = new ActorRuntime([ExcalidrawCollab]);
 
 Deno.serve({
   handler: async (req) => {
