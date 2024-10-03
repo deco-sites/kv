@@ -32,7 +32,7 @@ interface IExcalidrawCollab {
         collab: Collaborator,
     ) => AsyncIterableIterator<CollabEvent>;
     update: (collab: Collaborator) => void;
-    patch(ops: fjp.Operation[]): Promise<VersionedScene>;
+    patch(ops: fjp.Operation[]): Promise<VersionedScene & { conflict?: true }>;
 }
 
 export interface SceneSyncData {
@@ -100,15 +100,18 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         });
     }
 
-    async patch(ops: fjp.Operation[]): Promise<VersionedScene> {
+    async patch(
+        ops: fjp.Operation[],
+    ): Promise<VersionedScene & { conflict?: true }> {
         try {
             const sceneData = ops.reduce(
                 fjp.applyReducer,
                 this.sceneData,
             );
+            this.sceneVersion++;
             const nextState = {
                 elements: sceneData.elements,
-                version: this.sceneVersion + 1,
+                version: this.sceneVersion,
             };
             this.sceneData = sceneData;
             await this.state.storage.put("state", nextState);
@@ -118,7 +121,11 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
             });
             return nextState;
         } catch {
-            return { ...this.sceneData, version: this.sceneVersion };
+            return {
+                ...this.sceneData,
+                version: this.sceneVersion,
+                conflict: true,
+            };
         }
     }
 
