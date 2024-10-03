@@ -86,7 +86,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         state.blockConcurrencyWhile(async () => {
             const { version, elements } = await state.storage.get<
                 VersionedScene
-            >("state");
+            >("state") ?? { version: 0, elements: [] };
             this.sceneVersion = version;
             this.sceneData = { elements };
         });
