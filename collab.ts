@@ -99,12 +99,18 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         });
     }
 
-    update(collab: Collaborator): void {
+    private set(collab: Collaborator): void {
         this._collaborators[collab.id!] = collab;
         this.collabEvents.notify({
             type: "collaborator-updated",
             payload: collab,
         });
+    }
+
+    update(collab: Collaborator): void {
+        if (collab.id && collab.id in this._collaborators) {
+            this.set(collab);
+        }
     }
 
     private async jsonPatch(
@@ -223,7 +229,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 version: this.sceneVersion,
             },
         };
-        this.update(collab);
+        this.set(collab);
         yield* subscribe;
     }
 }
