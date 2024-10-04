@@ -215,6 +215,8 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
 
         const subscribe = this.collabEvents.subscribe();
 
+        this.set(collab);
+
         const retn = subscribe.return;
         subscribe.return = function (val) {
             leave();
@@ -229,7 +231,6 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 version: this.sceneVersion,
             },
         };
-        this.set(collab);
         yield* subscribe;
     }
 }
