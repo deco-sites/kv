@@ -5,7 +5,7 @@
     "fast-json-patch": "npm:fast-json-patch@^3.1.1"
   },
   "tasks": {
-    "start": "deno run -A --unstable-hmr --unstable-kv main.ts"
+    "start": "rm kv*; deno run -A --unstable-hmr --unstable-kv main.ts"
   },
   "githooks": {
     "pre-commit": "check"
