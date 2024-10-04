@@ -1,6 +1,7 @@
 import { ActorState } from "@deco/actors";
 import { WatchTarget } from "@deco/actors/watch";
 import { default as fjp } from "fast-json-patch";
+import { throttle } from "./util.ts";
 
 export interface ExcalidrawElement {
     id: string;
@@ -31,15 +32,17 @@ export interface CollaboratorPointer {
     tool: "pointer" | "laser";
 }
 
-interface IExcalidrawCollab {
+export type PatchResponse = VersionedScene & { conflict?: true };
+export type ExcalidrawElementOrDeleted = ExcalidrawElement | { deleted: true };
+export interface IExcalidrawCollab {
     join: (
         collab: Collaborator,
     ) => AsyncIterableIterator<CollabEvent>;
     update: (collab: Collaborator) => void;
     patch(
-        ops: Record<string, ExcalidrawElement | { deleted: true }>,
-    ): Promise<VersionedScene & { conflict?: true }>;
-    patch(ops: fjp.Operation[]): Promise<VersionedScene & { conflict?: true }>;
+        ops: Record<string, ExcalidrawElementOrDeleted>,
+    ): PatchResponse;
+    patch(ops: fjp.Operation[]): PatchResponse;
 }
 
 export interface SceneSyncData {
@@ -71,25 +74,44 @@ export interface SceneElementsSyncedDataEvent
     type: "scene-elements-synced";
 }
 
+export interface SceneElementsDiffDataEvent
+    extends BaseEvent<VersionedElementsDiff> {
+    type: "scene-elements-diff";
+}
+
 export interface VersionedScene extends SceneSyncData {
     version: number;
+}
+
+export interface VersionedElementsDiff {
+    version: number;
+    diff: Record<string, ExcalidrawElementOrDeleted>;
 }
 
 export type CollabEvent =
     | SceneDataEvent
     | CollaboratorUpdateEvent
     | CollaboratorLeftEvent
-    | SceneElementsSyncedDataEvent;
+    | SceneElementsSyncedDataEvent
+    | SceneElementsDiffDataEvent;
 
+const SAVE_EVERY_10_SECONDS_MS = 1000 * 10;
 export class ExcalidrawCollab implements IExcalidrawCollab {
     private _collaborators: Record<string, Collaborator> = {};
     private collabEvents = new WatchTarget<CollabEvent>();
     private sceneData: SceneSyncData = {
         elements: {},
     };
+    private throttledSaveState: () => void;
     private sceneVersion = 0;
 
     constructor(protected state: ActorState) {
+        this.throttledSaveState = throttle(async () => {
+            await this.state.storage.put("state", {
+                elements: this.sceneData.elements,
+                version: this.sceneVersion,
+            });
+        }, SAVE_EVERY_10_SECONDS_MS);
         state.blockConcurrencyWhile(async () => {
             const { version, elements } = await state.storage.get<
                 VersionedScene
@@ -113,9 +135,9 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         }
     }
 
-    private async jsonPatch(
+    private jsonPatch(
         ops: fjp.Operation[],
-    ): Promise<VersionedScene & { conflict?: true }> {
+    ): PatchResponse {
         try {
             const sceneData = ops.reduce(
                 fjp.applyReducer,
@@ -127,7 +149,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 version: this.sceneVersion,
             };
             this.sceneData = sceneData;
-            await this.state.storage.put("state", nextState);
+            this.throttledSaveState();
             this.collabEvents.notify({
                 type: "scene-elements-synced",
                 payload: nextState,
@@ -144,59 +166,51 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
 
     patch(
         ops: Record<string, ExcalidrawElement>,
-    ): Promise<VersionedScene & { conflict?: true }>;
+    ): PatchResponse;
     patch(
         ops: fjp.Operation[],
-    ): Promise<VersionedScene & { conflict?: true }>;
-    async patch(
+    ): PatchResponse;
+    patch(
         patchOrPartials:
             | fjp.Operation[]
             | Record<string, ExcalidrawElement | { deleted: true }>,
-    ): Promise<VersionedScene & { conflict?: true }> {
+    ): PatchResponse {
         if (Array.isArray(patchOrPartials)) {
             return this.jsonPatch(patchOrPartials);
         }
         for (
-            const [elementId, element] of Object.entries(
-                this.sceneData.elements,
+            const [elementId, partialElement] of Object.entries(
+                patchOrPartials,
             )
         ) {
-            const partialElement = patchOrPartials[element.id];
-
             // If the partial element exists and should be deleted
-            if (partialElement && "deleted" in partialElement) {
+            if ("deleted" in partialElement) {
                 // Instead of deleting, you can mark it as deleted to avoid changing object shape
                 delete this.sceneData.elements[elementId];
-                delete patchOrPartials[element.id]; // Remove the processed element from patchOrPartials
                 continue;
             }
+            const element = this.sceneData.elements[elementId];
 
             // If the partial element exists and is more up-to-date, update the element
-            if (partialElement && partialElement.updated > element.updated) {
+            if (
+                !element ||
+                partialElement.updated > element.updated
+            ) {
                 this.sceneData.elements[elementId] = partialElement;
-                delete patchOrPartials[element.id]; // Remove the processed element from patchOrPartials
                 continue;
             }
-        }
-
-        // Process any remaining new elements that were not updated in the first loop
-        for (const value of Object.values(patchOrPartials)) {
-            if (value && "deleted" in value) {
-                continue; // Skip deleted elements
-            }
-
-            // Add new elements
-            this.sceneData.elements[value.id] = value;
+            delete patchOrPartials[elementId];
         }
 
         const nextState = {
             version: ++this.sceneVersion,
             elements: this.sceneData.elements,
         };
-        await this.state.storage.put("state", nextState);
+
+        this.throttledSaveState();
         this.collabEvents.notify({
-            type: "scene-elements-synced",
-            payload: nextState,
+            type: "scene-elements-diff",
+            payload: { diff: patchOrPartials, version: nextState.version },
         });
         return nextState;
     }
@@ -231,6 +245,15 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 version: this.sceneVersion,
             },
         };
-        yield* subscribe;
+        for await (const event of subscribe) {
+            if (
+                // skip self updates
+                event.type === "collaborator-updated" &&
+                event.payload.id === collab.id
+            ) {
+                continue;
+            }
+            yield event;
+        }
     }
 }
