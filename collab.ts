@@ -2,6 +2,10 @@ import { ActorState } from "@deco/actors";
 import { WatchTarget } from "@deco/actors/watch";
 import { default as fjp } from "fast-json-patch";
 
+export interface ExcalidrawElement {
+    id: string;
+    updated: number;
+}
 export declare enum UserIdleState {
     ACTIVE = "active",
     AWAY = "away",
@@ -32,11 +36,14 @@ interface IExcalidrawCollab {
         collab: Collaborator,
     ) => AsyncIterableIterator<CollabEvent>;
     update: (collab: Collaborator) => void;
+    patch(
+        ops: Record<string, ExcalidrawElement | { deleted: true }>,
+    ): Promise<VersionedScene & { conflict?: true }>;
     patch(ops: fjp.Operation[]): Promise<VersionedScene & { conflict?: true }>;
 }
 
 export interface SceneSyncData {
-    elements: unknown[];
+    elements: ExcalidrawElement[];
 }
 
 export interface SceneData extends SceneSyncData {
@@ -100,7 +107,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         });
     }
 
-    async patch(
+    private async jsonPatch(
         ops: fjp.Operation[],
     ): Promise<VersionedScene & { conflict?: true }> {
         try {
@@ -127,6 +134,52 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 conflict: true,
             };
         }
+    }
+
+    patch(
+        ops: Record<string, ExcalidrawElement>,
+    ): Promise<VersionedScene & { conflict?: true }>;
+    patch(
+        ops: fjp.Operation[],
+    ): Promise<VersionedScene & { conflict?: true }>;
+    async patch(
+        patchOrPartials:
+            | fjp.Operation[]
+            | Record<string, ExcalidrawElement | { deleted: true }>,
+    ): Promise<VersionedScene & { conflict?: true }> {
+        if (Array.isArray(patchOrPartials)) {
+            return this.jsonPatch(patchOrPartials);
+        }
+        const elements: ExcalidrawElement[] = [];
+        this.sceneData.elements.forEach((element) => {
+            const partialElement = patchOrPartials[element.id];
+            delete patchOrPartials[element.id];
+            if (partialElement && "deleted" in partialElement) {
+                return;
+            }
+            if (partialElement && partialElement.updated > element.updated) {
+                elements.push({ ...element, ...partialElement });
+                return;
+            }
+            elements.push(element);
+        });
+        for (const value of Object.values(patchOrPartials)) {
+            if (value && "deleted" in value) {
+                continue;
+            }
+            elements.push(value);
+        }
+        this.sceneData.elements = elements;
+        const nextState = {
+            version: ++this.sceneVersion,
+            elements: this.sceneData.elements,
+        };
+        await this.state.storage.put("state", nextState);
+        this.collabEvents.notify({
+            type: "scene-elements-synced",
+            payload: nextState,
+        });
+        return nextState;
     }
 
     async *join(
