@@ -25,3 +25,30 @@ export function throttle<T extends (...args: any[]) => any>(
     }
   };
 }
+
+export async function* interleave<T, K>(
+  iterator1: AsyncIterableIterator<T>,
+  iterator2: AsyncIterableIterator<K>,
+): AsyncIterableIterator<T | K> {
+  const iterators = [iterator1, iterator2];
+
+  const nextPromises = iterators.map((iterator) => iterator.next());
+
+  while (nextPromises.length > 0) {
+    // Wait for the first available promise
+    const { value, done, index } = await Promise.race(
+      nextPromises.map((promise, idx) =>
+        promise.then((result) => ({ ...result, index: idx }))
+      ),
+    );
+
+    if (done) {
+      // If an iterator is done, remove it from the iterators array
+      nextPromises.splice(index, 1);
+    } else {
+      // Yield the available value and schedule the next promise from this iterator
+      yield value;
+      nextPromises[index] = iterators[index].next();
+    }
+  }
+}
