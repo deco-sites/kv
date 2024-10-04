@@ -278,7 +278,16 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         version: this.sceneVersion,
       },
     };
-    yield* subscribe;
+    for await (const event of subscribe) {
+      if (
+        // skip self updates
+        event.type === "collaborator-updated" &&
+        event.payload.id === collab.id
+      ) {
+        continue;
+      }
+      yield event;
+    }
   }
 
   async *join(
