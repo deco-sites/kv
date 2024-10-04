@@ -193,7 +193,6 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 payload: collab.id!,
             });
         };
-        this.update(collab);
 
         const subscribe = this.collabEvents.subscribe();
 
@@ -211,6 +210,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 version: this.sceneVersion,
             },
         };
+        this.update(collab);
         yield* subscribe;
     }
 }
