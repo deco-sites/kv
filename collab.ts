@@ -43,7 +43,7 @@ interface IExcalidrawCollab {
 }
 
 export interface SceneSyncData {
-    elements: ExcalidrawElement[];
+    elements: Record<string, ExcalidrawElement>;
 }
 
 export interface SceneData extends SceneSyncData {
@@ -85,7 +85,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
     private _collaborators: Record<string, Collaborator> = {};
     private collabEvents = new WatchTarget<CollabEvent>();
     private sceneData: SceneSyncData = {
-        elements: [],
+        elements: {},
     };
     private sceneVersion = 0;
 
@@ -150,26 +150,28 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         if (Array.isArray(patchOrPartials)) {
             return this.jsonPatch(patchOrPartials);
         }
-        const elements: ExcalidrawElement[] = [];
-        this.sceneData.elements.forEach((element) => {
+        for (
+            const [elementId, element] of Object.entries(
+                this.sceneData.elements,
+            )
+        ) {
             const partialElement = patchOrPartials[element.id];
             delete patchOrPartials[element.id];
             if (partialElement && "deleted" in partialElement) {
-                return;
+                delete this.sceneData.elements[elementId];
+                continue;
             }
             if (partialElement && partialElement.updated > element.updated) {
-                elements.push({ ...element, ...partialElement });
-                return;
+                this.sceneData.elements[elementId] = partialElement;
+                continue;
             }
-            elements.push(element);
-        });
+        }
         for (const value of Object.values(patchOrPartials)) {
             if (value && "deleted" in value) {
                 continue;
             }
-            elements.push(value);
+            this.sceneData.elements[value.id] = value;
         }
-        this.sceneData.elements = elements;
         const nextState = {
             version: ++this.sceneVersion,
             elements: this.sceneData.elements,
