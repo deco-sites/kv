@@ -66,7 +66,7 @@ export interface SceneDataEvent
     type: "scene-synced";
 }
 
-export interface SceneElementsScynedDataEvent
+export interface SceneElementsSyncedDataEvent
     extends BaseEvent<VersionedScene> {
     type: "scene-elements-synced";
 }
@@ -79,7 +79,7 @@ export type CollabEvent =
     | SceneDataEvent
     | CollaboratorUpdateEvent
     | CollaboratorLeftEvent
-    | SceneElementsScynedDataEvent;
+    | SceneElementsSyncedDataEvent;
 
 export class ExcalidrawCollab implements IExcalidrawCollab {
     private _collaborators: Record<string, Collaborator> = {};
