@@ -37,7 +37,8 @@ export type ExcalidrawElementOrDeleted = ExcalidrawElement | { deleted: true };
 export interface IExcalidrawCollab {
     join: (
         collab: Collaborator,
-    ) => AsyncIterableIterator<CollabEvent>;
+    ) => AsyncIterableIterator<CollaborationEvents | SceneDataEvent>;
+    watch: () => AsyncIterableIterator<SceneEvents>;
     update: (collab: Collaborator) => void;
     patch(
         ops: Record<string, ExcalidrawElementOrDeleted>,
@@ -69,6 +70,13 @@ export interface SceneDataEvent
     type: "scene-synced";
 }
 
+export interface SceneDataBatchEvent extends
+    BaseEvent<
+        { elements: Record<string, ExcalidrawElement>; version: number }
+    > {
+    type: "scene-elements-batch-synced";
+}
+
 export interface SceneElementsSyncedDataEvent
     extends BaseEvent<VersionedScene> {
     type: "scene-elements-synced";
@@ -88,17 +96,27 @@ export interface VersionedElementsDiff {
     diff: Record<string, ExcalidrawElementOrDeleted>;
 }
 
-export type CollabEvent =
-    | SceneDataEvent
+export type CollaborationEvents =
     | CollaboratorUpdateEvent
-    | CollaboratorLeftEvent
+    | CollaboratorLeftEvent;
+
+export type SceneEvents =
+    | SceneDataBatchEvent
+    | SceneDataEvent
     | SceneElementsSyncedDataEvent
     | SceneElementsDiffDataEvent;
 
+export type CollabEvent =
+    | SceneEvents
+    | CollaborationEvents;
+
+const BATCH_SIZE = 100;
 const SAVE_EVERY_10_SECONDS_MS = 1000 * 10;
 export class ExcalidrawCollab implements IExcalidrawCollab {
     private _collaborators: Record<string, Collaborator> = {};
-    private collabEvents = new WatchTarget<CollabEvent>();
+    private collaborationEvents = new WatchTarget<CollaborationEvents>();
+    private sceneEvents = new WatchTarget<SceneEvents>();
+
     private sceneData: SceneSyncData = {
         elements: {},
     };
@@ -123,7 +141,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
 
     private set(collab: Collaborator): void {
         this._collaborators[collab.id!] = collab;
-        this.collabEvents.notify({
+        this.collaborationEvents.notify({
             type: "collaborator-updated",
             payload: collab,
         });
@@ -150,7 +168,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
             };
             this.sceneData = sceneData;
             this.throttledSaveState();
-            this.collabEvents.notify({
+            this.sceneEvents.notify({
                 type: "scene-elements-synced",
                 payload: nextState,
             });
@@ -208,26 +226,46 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         };
 
         this.throttledSaveState();
-        this.collabEvents.notify({
+        this.sceneEvents.notify({
             type: "scene-elements-diff",
             payload: { diff: patchOrPartials, version: nextState.version },
         });
         return nextState;
     }
 
+    async *watch(): AsyncIterableIterator<SceneEvents> {
+        const subscription = this.sceneEvents.subscribe();
+        const keys = Object.keys(this.sceneData.elements);
+        const version = this.sceneVersion;
+        for (let slice = 0; slice < keys.length; slice = slice + BATCH_SIZE) {
+            const elements: Record<string, ExcalidrawElement> = {};
+            for (const key of keys.slice(slice, slice + BATCH_SIZE)) {
+                elements[key] = this.sceneData.elements[key];
+            }
+            yield {
+                type: "scene-elements-batch-synced",
+                payload: {
+                    elements,
+                    version,
+                },
+            };
+        }
+        yield* subscription;
+    }
+
     async *join(
         collab: Collaborator,
-    ): AsyncIterableIterator<CollabEvent> {
+    ): AsyncIterableIterator<CollaborationEvents | SceneDataEvent> { // compat only
         collab.id ??= crypto.randomUUID();
         const leave = () => {
             delete this._collaborators[collab.id!];
-            this.collabEvents.notify({
+            this.collaborationEvents.notify({
                 type: "collaborator-left",
                 payload: collab.id!,
             });
         };
 
-        const subscribe = this.collabEvents.subscribe();
+        const subscribe = this.collaborationEvents.subscribe();
 
         this.set(collab);
 
@@ -245,15 +283,6 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
                 version: this.sceneVersion,
             },
         };
-        for await (const event of subscribe) {
-            if (
-                // skip self updates
-                event.type === "collaborator-updated" &&
-                event.payload.id === collab.id
-            ) {
-                continue;
-            }
-            yield event;
-        }
+        yield* subscribe;
     }
 }
