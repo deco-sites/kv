@@ -232,6 +232,15 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
     const subscription = this.sceneEvents.subscribe();
     const keys = Object.keys(this.sceneData.elements);
     const version = this.sceneVersion;
+    if (keys.length === 0) {
+      yield {
+        type: "scene-elements-diff",
+        payload: {
+          diff: {},
+          version,
+        },
+      };
+    }
     for (let slice = 0; slice < keys.length; slice = slice + BATCH_SIZE) {
       const elements: Record<string, ExcalidrawElement> = {};
       for (const key of keys.slice(slice, slice + BATCH_SIZE)) {
