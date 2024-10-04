@@ -93,7 +93,7 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
         state.blockConcurrencyWhile(async () => {
             const { version, elements } = await state.storage.get<
                 VersionedScene
-            >("state") ?? { version: 0, elements: [] };
+            >("state") ?? { version: 0, elements: {} };
             this.sceneVersion = version;
             this.sceneData = { elements };
         });
@@ -156,22 +156,33 @@ export class ExcalidrawCollab implements IExcalidrawCollab {
             )
         ) {
             const partialElement = patchOrPartials[element.id];
-            delete patchOrPartials[element.id];
+
+            // If the partial element exists and should be deleted
             if (partialElement && "deleted" in partialElement) {
+                // Instead of deleting, you can mark it as deleted to avoid changing object shape
                 delete this.sceneData.elements[elementId];
+                delete patchOrPartials[element.id]; // Remove the processed element from patchOrPartials
                 continue;
             }
+
+            // If the partial element exists and is more up-to-date, update the element
             if (partialElement && partialElement.updated > element.updated) {
                 this.sceneData.elements[elementId] = partialElement;
+                delete patchOrPartials[element.id]; // Remove the processed element from patchOrPartials
                 continue;
             }
         }
+
+        // Process any remaining new elements that were not updated in the first loop
         for (const value of Object.values(patchOrPartials)) {
             if (value && "deleted" in value) {
-                continue;
+                continue; // Skip deleted elements
             }
+
+            // Add new elements
             this.sceneData.elements[value.id] = value;
         }
+
         const nextState = {
             version: ++this.sceneVersion,
             elements: this.sceneData.elements,
