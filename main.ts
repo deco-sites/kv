@@ -16,6 +16,8 @@ Deno.serve({
           "Access-Control-Allow-Methods": "*",
           "Access-Control-Allow-Headers": "*",
           "Access-Control-Max-Age": "86400",
+          "Cache-Control": "public, max-age=86400",
+          "Vary": "origin",
         },
       });
       return response;
